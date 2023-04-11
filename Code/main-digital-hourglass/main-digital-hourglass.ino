@@ -6,8 +6,8 @@
 //
 // 2023, HAW Hamburg
 //
-// Link zum Code:
-// https://github.com/TheDevNino/IR-Signal-to-LCD-Screen.git
+// Link zum Projekt:
+// https://github.com/TheDevNino/digital-hourglass-arduino
 
 
 void setup() {
