@@ -1,15 +1,20 @@
-// TPD-B-Projekt "Digitale Sanduhr"
-//
-// Projektleitung:
-// Theodor Diehl
-// Gian Nino Cataffo
-//
-// 2023, HAW Hamburg
-//
-// Link zum Projekt:
-// https://github.com/TheDevNino/digital-hourglass-arduino
+/* 
 
-enum Modus {  // ENUM als Grundlage für die gesamte Programmstruktur
+   TPD-B-Projekt "Digitale Sanduhr":
+
+   Projektleitung:
+   Theodor Diehl
+   Gian Nino Cataffo
+
+   2023, HAW Hamburg
+
+   Link zum Projekt:
+   https://github.com/TheDevNino/digital-hourglass-arduino
+
+*/
+
+// Grundlage für die gesamte Programmstruktur
+enum Modus {
   PGM_Auswahl,
   PGM_1,
   PGM_2,
@@ -17,25 +22,32 @@ enum Modus {  // ENUM als Grundlage für die gesamte Programmstruktur
 };
 Modus (aktiverModus) = PGM_Auswahl;
 
-int encoderWert[4];  // Ein Array mit 4 Elementen vom Typ int (FÜR JEDEN MODUS EINEN)
-encoderWert[0] = 1;  // Standard-Startwert für PGM_Auswahl
-encoderWert[1] = 10; // Standard-Startwert für PGM_1
-encoderWert[2] = 1;  // Standard-Startwert für PGM_2
-encoderWert[3] = 50; // Standard-Startwert für PGM_3
+// Speicherung von Werten für Programme
+int encoderWert[4];
+encoderWert[0] = 1;
+encoderWert[1] = 10;
+encoderWert[2] = 1;
+encoderWert[3] = 50;
 
-int encoderIntervall[4]
-encoderIntervall[0] = 1;  // Standard-Intervall für PGM_Auswahl
-encoderIntervall[1] = 10; // Standard-Intervall für PGM_1
-encoderIntervall[2] = 1;  // Standard-Intervall für PGM_2
-encoderIntervall[3] = 1; // Standard-Intervall für PGM_3
+// Standard-Intervalle für Programme
+int encoderIntervall[4];
+encoderIntervall[0] = 1;  
+encoderIntervall[1] = 10;
+encoderIntervall[2] = 1; 
+encoderIntervall[3] = 1; 
 
-// HARDWARE
+
+// - HARDWARE -
+
 // Drehencoder
-#define CLK   2   // Drehencoder 
-#define DT    3   // Drehencoder
-#define SW    4   // Drehencoder
-#define IR    5   // IR Empfänger
+#define CLK   2
+#define DT    3
+#define SW    4
 
+// IR Empfänger
+#define IR    5
+
+// ...
 
 
 
