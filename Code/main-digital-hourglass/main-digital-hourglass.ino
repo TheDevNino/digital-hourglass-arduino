@@ -1,4 +1,4 @@
-/* 
+/*
 
    TPD-B-Projekt "Digitale Sanduhr":
 
@@ -14,97 +14,128 @@
 */
 
 // Grundlage für die gesamte Programmstruktur
-enum Modus {
+enum Modus
+{
   PGM_Auswahl,
   PGM_1,
   PGM_2,
   PGM_3
 };
-Modus (aktiverModus) = PGM_Auswahl;
+Modus aktiverModus = PGM_Auswahl;
 
-// Speicherung von Werten für Programme
-int encoderWert[4];
-encoderWert[0] = 1;
-encoderWert[1] = 10;
-encoderWert[2] = 1;
-encoderWert[3] = 50;
-
-// Standard-Intervalle für Programme
-int encoderIntervall[4];
-encoderIntervall[0] = 1;  
-encoderIntervall[1] = 10;
-encoderIntervall[2] = 1; 
-encoderIntervall[3] = 1; 
-
+int encoderWert[] = {1, 30, 1, 50};
+int encoderIntervall[] = {1, 10, 1, 1};
+int encoderMin[] = {1, 10, 1, 0};
+int encoderMax[] = {3, 900, 5, 100};
 
 // - HARDWARE -
 
 // Drehencoder
-#define CLK   2
-#define DT    3
-#define SW    4
+#define CLK 2
+#define DT 3
+#define SW 4
+int currentStateCLK;
+int lastStateCLK;
+int lastStateDT;
+int buttonState = 0;
+int lastButtonState = 0;
+unsigned long buttonDownTime = 0;
 
 // IR Empfänger
-#define IR    5
+#define IR 5
 
-// ...
+void setup()
+{
+  // Encoder Pins
+  pinMode(CLK, INPUT);
+  pinMode(DT, INPUT);
+  pinMode(SW, INPUT_PULLUP);
 
+  // Setup Serieller Monitor
+  Serial.begin(9600);
 
-
-void setup() {
-	// encoder pins
-	pinMode(CLK,INPUT);
-	pinMode(DT,INPUT);
-	pinMode(SW, INPUT_PULLUP);
-
-	// Setup Serial Monitor
-	Serial.begin(9600);
-
-	// Read the initial state of CLK
-	lastStateCLK = digitalRead(CLK);
+  // Read the initial state of
+  lastStateCLK = digitalRead(CLK);
+  lastStateDT = digitalRead(DT);
 }
 
-void loop() {
-
-  switch(aktiverModus){
-    case PGM_Auswahl:
-      encoderAuswerten(0);
-      break;
-    case PGM_1:
-      encoderAuswerten(1);
-      break;
-    case PGM_2:
-      encoderAuswerten(2);
-      break;
-    case PGM_3:
-      encoderAuswerten(3);
-      break;
+void loop()
+{
+  encoderAuswerten();
+  switch (aktiverModus)
+  {
+  case PGM_Auswahl:
+    break;
+  case PGM_1:
+    break;
+  case PGM_2:
+    break;
+  case PGM_3:
+    break;
   }
+
+  delay(1);
 }
 
-void PGM_Auswahl(){}
-void PGM_1(){}
-void PGM_2(){}
-void PGM_3(){}
+void encoderAuswerten()
+{
+  // Read the current state of CLK and DT
+  int currentStateCLK = digitalRead(CLK);
+  int currentStateDT = digitalRead(DT);
 
-void encoderAuswerten(int PGM){
+  // If last and current state of CLK are different, then pulse occurred
+  // React to only 1 state change to avoid double count
+  if (currentStateCLK != lastStateCLK && currentStateCLK == 1)
+  {
+    // Determine the direction of rotation based on the current and last DT state
+    if (currentStateDT != currentStateCLK)
+    {
+      // Clockwise rotation
+      encoderWert[aktiverModus] += encoderIntervall[aktiverModus];
+    }
+    else
+    {
+      // Counterclockwise rotation
+      encoderWert[aktiverModus] -= encoderIntervall[aktiverModus];
+    }
 
-	currentStateCLK = digitalRead(CLK);
-  if (currentStateCLK != lastStateCLK  && currentStateCLK == 1){
-    if (digitalRead(DT) != currentStateCLK) {
-        encoderWert[PGM] = encoderWert[PGM] + encoderIntervall[PGM];
-      } else {
-        encoderWert[PGM] = encoderWert[PGM] - encoderIntervall[PGM];
-      }
-	}
-	lastStateCLK = currentStateCLK; // Remember last CLK state
+    // Clamp the parameter value to the allowed range
+    encoderWert[aktiverModus] = constrain(encoderWert[aktiverModus], encoderMin[aktiverModus], encoderMax[aktiverModus]);
 
-	// Read the button state
-	int btnState = digitalRead(SW);
-	if (btnState == LOW) { 	//If LOW, button pressed
-		if (millis() - lastButtonPress > 50) {
-			Serial.println("Button pressed!");
-		}
-		lastButtonPress = millis();
-	}
+    // Print the updated parameter value
+    Serial.print("PGM\tVal\tInt\n");
+    Serial.print(aktiverModus);
+    Serial.print("\t");
+    Serial.print(encoderWert[aktiverModus]);
+    Serial.print("\t");
+    Serial.print(encoderIntervall[aktiverModus]);
+    Serial.print("\n---------------\n");
+  }
+
+  // Remember last CLK and DT state
+  lastStateCLK = currentStateCLK;
+  lastStateDT = currentStateDT;
+
+  int buttonState = digitalRead(SW);
+
+  if (buttonState != lastButtonState)
+  { // Wenn sich der Status des Buttons ändert
+    if (buttonState == LOW)
+    {                            // Wenn der Button gedrückt wird
+      buttonDownTime = millis(); // Speichern der Startzeit
+    }
+    else
+    {                                                               // Wenn der Button losgelassen wird
+      unsigned long buttonUpTime = millis();                        // Speichern der Endzeit
+      unsigned long buttonDuration = buttonUpTime - buttonDownTime; // Berechnen der Dauer
+      Serial.print("Button gedrückt für ");
+      Serial.print(buttonDuration);
+      Serial.println(" ms");
+    }
+  }
+
+  lastButtonState = buttonState; // Speichern des vorherigen Status des Buttons
+
+  // Debounce the reading
+  delay(11);
 }
