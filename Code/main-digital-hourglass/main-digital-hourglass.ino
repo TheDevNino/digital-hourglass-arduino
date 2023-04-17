@@ -49,7 +49,8 @@ unsigned long buttonDownTime = 0;
 #define LOAD 7
 #define DIGITS 2
 ShiftRegister74HC595<DIGITS> myRegister(SDI, SCLK, LOAD);
-int value, digit1, digit2;
+int digit1, digit2;
+uint8_t off[] = {B11111111, B11111111};
 uint8_t digits[] = {
     B11000000, // 0
     B11111001, // 1
@@ -81,23 +82,13 @@ void setup()
   lastStateDT = digitalRead(DT);
 
   // Initialisierung des Displays
-  myRegister.setAll(0);
+  showNumber(1);
 }
 
 void loop()
 {
   encoderAuswerten();
-  switch (aktiverModus)
-  {
-  case PGM_Auswahl:
-    break;
-  case PGM_1:
-    break;
-  case PGM_2:
-    break;
-  case PGM_3:
-    break;
-  }
+  showNumber(encoderWert[aktiverModus]);
 }
 
 void encoderAuswerten()
@@ -133,7 +124,6 @@ void encoderAuswerten()
     Serial.print("\t");
     Serial.print(encoderIntervall[aktiverModus]);
     Serial.print("\n---------------\n");
-    showNumber(encoderWert[aktiverModus]);
   }
 
   // Remember last CLK and DT state
@@ -149,12 +139,8 @@ void encoderAuswerten()
       buttonDownTime = millis(); // Speichern der Startzeit
     }
     else
-    {                                                               // Wenn der Button losgelassen wird
-      unsigned long buttonUpTime = millis();                        // Speichern der Endzeit
-      unsigned long buttonDuration = buttonUpTime - buttonDownTime; // Berechnen der Dauer
-      Serial.print("Button gedrückt für ");
-      Serial.print(buttonDuration);
-      Serial.println(" ms");
+    { // Wenn der Button losgelassen wird
+      buttonAuswerten(buttonDuration);
     }
   }
 
@@ -164,8 +150,36 @@ void encoderAuswerten()
   delay(1);
 }
 
+void buttonAuswerten(long duration)
+{
+  if (duration > 300)
+  {
+    aktiverModus = 0;
+  }
+  else if (duration > 30)
+  {
+    switch (aktiverModus)
+    {
+    case PGM_Auswahl:
+      aktiverModus = encoderWert[aktiverModus];
+      break;
+    case PGM_1:
+      // start timer
+      break;
+    case PGM_2:
+      // start effekt
+      break;
+    case PGM_3:
+      // change kelvin-wert
+      break;
+    }
+  }
+}
+
 void showNumber(int num) // https://robojax.com/learn/arduino/?vid=robojax_74HC595_2_digits (Änderungen vorgenommen)
 {
+  Serial.println(digit1);
+  Serial.println(digit2);
   digit2 = num % 10;
   digit1 = (num / 10) % 10;
   // Send them to 7 segment displays
@@ -176,7 +190,7 @@ void showNumber(int num) // https://robojax.com/learn/arduino/?vid=robojax_74HC5
   }
   else
   {
-    uint8_t numberToPrint[] = {digits[digit2], digits[digit1]};
+    uint8_t numberToPrint[] = {digits[digit1], digits[digit2]};
     myRegister.setAll(numberToPrint);
   }
 }
