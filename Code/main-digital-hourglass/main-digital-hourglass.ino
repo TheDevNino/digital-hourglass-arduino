@@ -13,6 +13,9 @@
 
 */
 
+// Library für die 7-Segmentanzeige
+#include <ShiftRegister74HC595.h>
+
 // Grundlage für die gesamte Programmstruktur
 enum Modus
 {
@@ -23,12 +26,11 @@ enum Modus
 };
 Modus aktiverModus = PGM_Auswahl;
 
+// Werte(-bereiche)
 int encoderWert[] = {1, 30, 1, 50};
 int encoderIntervall[] = {1, 10, 1, 1};
 int encoderMin[] = {1, 10, 1, 0};
 int encoderMax[] = {3, 900, 5, 100};
-
-// - HARDWARE -
 
 // Drehencoder
 #define CLK 2
@@ -40,6 +42,26 @@ int lastStateDT;
 int buttonState = 0;
 int lastButtonState = 0;
 unsigned long buttonDownTime = 0;
+
+// 7-Segmentanzeige
+#define SDI 5
+#define SCLK 6
+#define LOAD 7
+#define DIGITS 2
+ShiftRegister74HC595<DIGITS> myRegister(SDI, SCLK, LOAD);
+int value, digit1, digit2;
+uint8_t digits[] = {
+    B11000000, // 0
+    B11111001, // 1
+    B10100100, // 2
+    B10110000, // 3
+    B10011001, // 4
+    B10010010, // 5
+    B10000010, // 6
+    B11111000, // 7
+    B10000000, // 8
+    B10010000  // 9
+};
 
 // IR Empfänger
 #define IR 5
@@ -54,9 +76,12 @@ void setup()
   // Setup Serieller Monitor
   Serial.begin(9600);
 
-  // Read the initial state of
+  // Initialisierung der Encoder
   lastStateCLK = digitalRead(CLK);
   lastStateDT = digitalRead(DT);
+
+  // Initialisierung des Displays
+  myRegister.setAll(0);
 }
 
 void loop()
@@ -73,8 +98,6 @@ void loop()
   case PGM_3:
     break;
   }
-
-  delay(1);
 }
 
 void encoderAuswerten()
@@ -110,6 +133,7 @@ void encoderAuswerten()
     Serial.print("\t");
     Serial.print(encoderIntervall[aktiverModus]);
     Serial.print("\n---------------\n");
+    showNumber(encoderWert[aktiverModus]);
   }
 
   // Remember last CLK and DT state
@@ -137,5 +161,22 @@ void encoderAuswerten()
   lastButtonState = buttonState; // Speichern des vorherigen Status des Buttons
 
   // Debounce the reading
-  delay(11);
+  delay(1);
+}
+
+void showNumber(int num) // https://robojax.com/learn/arduino/?vid=robojax_74HC595_2_digits (Änderungen vorgenommen)
+{
+  digit2 = num % 10;
+  digit1 = (num / 10) % 10;
+  // Send them to 7 segment displays
+  if (digit1 == 0)
+  {
+    uint8_t numberToPrint[] = {B11111111, digits[digit2]};
+    myRegister.setAll(numberToPrint);
+  }
+  else
+  {
+    uint8_t numberToPrint[] = {digits[digit2], digits[digit1]};
+    myRegister.setAll(numberToPrint);
+  }
 }
