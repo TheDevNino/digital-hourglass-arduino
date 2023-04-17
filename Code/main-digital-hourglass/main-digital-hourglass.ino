@@ -139,7 +139,9 @@ void encoderAuswerten()
       buttonDownTime = millis(); // Speichern der Startzeit
     }
     else
-    { // Wenn der Button losgelassen wird
+    {                                                               // Wenn der Button losgelassen wird
+      unsigned long buttonUpTime = millis();                        // Speichern der Endzeit
+      unsigned long buttonDuration = buttonUpTime - buttonDownTime; // Berechnen der Dauer
       buttonAuswerten(buttonDuration);
     }
   }
@@ -165,6 +167,7 @@ void buttonAuswerten(long duration)
       break;
     case PGM_1:
       // start timer
+      startTimer();
       break;
     case PGM_2:
       // start effekt
@@ -174,6 +177,27 @@ void buttonAuswerten(long duration)
       break;
     }
   }
+}
+
+void startTimer()
+{
+  unsigned long inputTime = encoderWert[aktiverModus];
+  unsigned long startTime = millis();
+  unsigned long elapsedTime = 0;
+
+  while (inputTime > 0)
+  {
+    elapsedTime = millis() - startTime;
+
+    if (elapsedTime >= 1000)
+    {
+      inputTime--;
+      startTime = millis();
+    }
+    showNumber(inputTime);
+    // TODO: Sanduhr Animation
+  }
+  // * Eventuell Abschluss-Animation und Beeper
 }
 
 void showNumber(int num) // https://robojax.com/learn/arduino/?vid=robojax_74HC595_2_digits (Änderungen vorgenommen)
