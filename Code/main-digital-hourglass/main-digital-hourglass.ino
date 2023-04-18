@@ -29,7 +29,7 @@ Modus aktiverModus = PGM_Auswahl;
 // Werte(-bereiche)
 int encoderWert[] = {1, 30, 1, 50};
 int encoderIntervall[] = {1, 10, 1, 1};
-int encoderMin[] = {1, 10, 1, 0};
+int encoderMin[] = {1, 1, 1, 0};
 int encoderMax[] = {3, 900, 5, 100};
 
 // Drehencoder
@@ -63,9 +63,16 @@ uint8_t digits[] = {
     B10000000, // 8
     B10010000  // 9
 };
+// ToDo rotated Digits
 
 // IR Empfänger
 #define IR 5
+
+// WS2812b
+
+// Gyroskop
+
+// evtl Beeper
 
 void setup()
 {
@@ -87,8 +94,23 @@ void setup()
 
 void loop()
 {
+  if (aktiverModus == PGM_1)
+  {
+    intervallAnpassung();
+  }
   encoderAuswerten();
-  showNumber(encoderWert[aktiverModus]);
+}
+
+void intervallAnpassung()
+{
+  if (encoderWert[PGM_1] <= 60)
+  {
+    encoderIntervall[PGM_1] = 1;
+  }
+  else
+  {
+    encoderIntervall[PGM_1] = 10;
+  }
 }
 
 void encoderAuswerten()
@@ -124,6 +146,15 @@ void encoderAuswerten()
     Serial.print("\t");
     Serial.print(encoderIntervall[aktiverModus]);
     Serial.print("\n---------------\n");
+
+    if (aktiverModus == PGM_1 && encoderWert[aktiverModus] >= 60)
+    {
+      showNumber(secondsToMinutes(encoderWert[aktiverModus]));
+    }
+    else
+    {
+      showNumber(encoderWert[aktiverModus]);
+    }
   }
 
   // Remember last CLK and DT state
@@ -164,6 +195,7 @@ void buttonAuswerten(long duration)
     {
     case PGM_Auswahl:
       aktiverModus = encoderWert[aktiverModus];
+      showNumber(encoderWert[aktiverModus]);
       break;
     case PGM_1:
       // start timer
@@ -179,8 +211,23 @@ void buttonAuswerten(long duration)
   }
 }
 
+int secondsToMinutes(int seconds)
+{
+  if (seconds >= 600)
+  {
+    return seconds / 60; // beide Digits zeigen die Minute
+  }
+  else
+  {
+    int minutes = seconds / 60;
+    int tensSeconds = (seconds % 60) / 10;
+    return minutes * 10 + tensSeconds; // nur das zweite Digit zeigt Zehn-Sekunden
+  }
+}
+
 void startTimer()
 {
+  int encoderM1 = encoderWert[aktiverModus];
   unsigned long inputTime = encoderWert[aktiverModus];
   unsigned long startTime = millis();
   unsigned long elapsedTime = 0;
@@ -194,22 +241,44 @@ void startTimer()
       inputTime--;
       startTime = millis();
     }
-    showNumber(inputTime);
+    encoderWert[aktiverModus] = inputTime;
+
+    if (inputTime > 60)
+    {
+      showNumber((secondsToMinutes(inputTime)));
+    }
+    else
+    {
+      showNumber(inputTime);
+    }
     // TODO: Sanduhr Animation
   }
+  encoderWert[aktiverModus] = encoderM1;
   // * Eventuell Abschluss-Animation und Beeper
 }
 
 void showNumber(int num) // https://robojax.com/learn/arduino/?vid=robojax_74HC595_2_digits (Änderungen vorgenommen)
 {
-  Serial.println(digit1);
-  Serial.println(digit2);
   digit2 = num % 10;
   digit1 = (num / 10) % 10;
   // Send them to 7 segment displays
   if (digit1 == 0)
   {
     uint8_t numberToPrint[] = {B11111111, digits[digit2]};
+    myRegister.setAll(numberToPrint);
+  }
+  else if (aktiverModus == PGM_1 && encoderWert[aktiverModus] >= 60 && encoderWert[aktiverModus] < 600) // Punkt einfügen
+  {
+    uint8_t editedDigit = digits[digit1];
+    uint8_t mask = B10000000;    // Bitmaske zum Isolieren des ersten Bits
+    uint8_t newMask = B00000000; // Bitmaske zum Löschen des ersten Bits
+
+    if ((editedDigit & mask) != 0)
+    {                         // Überprüfen, ob das erste Bit gesetzt ist
+      editedDigit ^= mask;    // Wenn ja, das erste Bit löschen
+      editedDigit |= newMask; // Das erste Bit auf 0 setzen
+    }
+    uint8_t numberToPrint[] = {editedDigit, digits[digit2]};
     myRegister.setAll(numberToPrint);
   }
   else
