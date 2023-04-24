@@ -1,3 +1,4 @@
+
 /*
 
    TPD-B-Projekt "Digitale Sanduhr":
@@ -15,6 +16,13 @@
 
 // Library für die 7-Segmentanzeige
 #include <ShiftRegister74HC595.h>
+
+// Library für den IR Empfänger
+#include <IRremote.h> 
+
+// Library für die WS2812b LEDs
+#include <FastLED.h>
+
 
 // Grundlage für die gesamte Programmstruktur
 enum Modus
@@ -65,17 +73,34 @@ uint8_t digits[] = {
 };
 // ToDo rotated Digits
 
-// IR Empfänger
-#define IR 5
-
 // WS2812b
 
+#define LED_PIN     8
+#define NUM_LEDS    55
+#define BRIGHTNESS  20
+#define LED_TYPE    WS2812
+#define COLOR_ORDER GRB
+CRGB leds[NUM_LEDS];
+#define UPDATES_PER_SECOND 100
+CRGBPalette16 currentPalette;
+TBlendType    currentBlending;
+extern CRGBPalette16 myRedWhiteBluePalette;
+extern const TProgmemPalette16 myRedWhiteBluePalette_p PROGMEM;
+
+// IR Empfänger
+int RECV_PIN = 12;
+IRrecv irrecv(RECV_PIN); 
+decode_results results; 
+
 // Gyroskop
+//  ...
 
 // evtl Beeper
 
 void setup()
 {
+  //delay( 100 ); // power-up safety delay
+  
   // Encoder Pins
   pinMode(CLK, INPUT);
   pinMode(DT, INPUT);
@@ -90,7 +115,18 @@ void setup()
 
   // Initialisierung des Displays
   showNumber(1);
+
+  // Initialisierung des Infrarotempfängers
+  irrecv.blink13(true); 
+    
+  // Initialisierung der LEDs
+  FastLED.addLeds<LED_TYPE, LED_PIN, COLOR_ORDER>(leds, NUM_LEDS).setCorrection( TypicalLEDStrip );
+  FastLED.setBrightness(  BRIGHTNESS );
+  
+  currentPalette = RainbowColors_p;
+  currentBlending = LINEARBLEND;
 }
+
 
 void loop()
 {
@@ -99,7 +135,114 @@ void loop()
     intervallAnpassung();
   }
   encoderAuswerten();
+  //IR_Auswerten();
+
+  // Define the LED arrangement in the form of a Sandclock
+  // Top Half
+  int ledCount = 0;
+  for (int i = 7; i >= 1; i--) {
+    for (int j = 1; j <= i; j++) {
+      leds[ledCount] = CRGB::White;
+      ledCount++;
+    }
+  }
+
+  // Middle LED
+  leds[28] = CRGB::White;
+
+  // Bottom Half
+  for (int i = 2; i <= 7; i++) {
+    for (int j = 1; j <= i; j++) {
+      leds[ledCount] = CRGB::White;
+      ledCount++;
+    }
+  }
+// Entprellen
+  delay(1);
 }
+
+void rainbow() {
+  for (int i = 0; i < NUM_LEDS; i++) {
+    leds[i] = CHSV(i * 255 / NUM_LEDS, 255, 255);
+  }
+  FastLED.show();
+  delay(50);
+}
+
+void colorWipe(CRGB color, int speed) {
+  for (int i = 0; i < NUM_LEDS; i++) {
+    leds[i] = color;
+    FastLED.show();
+    delay(speed);
+  }
+}
+
+void theaterChase(CRGB color, int speed) {
+  for (int j = 0; j < 10; j++) {
+    for (int q = 0; q < 3; q++) {
+      for (int i = 0; i < NUM_LEDS; i += 3) {
+        leds[i + q] = color;
+      }
+      FastLED.show();
+      delay(speed);
+      for (int i = 0; i < NUM_LEDS; i += 3) {
+        leds[i + q] = CRGB::Black;
+      }
+    }
+  }
+}
+
+void twinkle(CRGB color, int speed) {
+  for (int i = 0; i < NUM_LEDS; i++) {
+    if (random(100) < 50) {
+      leds[i] = color;
+    } else {
+      leds[i] = CRGB::Black;
+    }
+  }
+  FastLED.show();
+  delay(speed);
+}
+
+void fadeToBlack() {
+  for (int i = 0; i < 255; i++) {
+    for (int j = 0; j < NUM_LEDS; j++) {
+      leds[j].fadeToBlackBy(1);
+    }
+    FastLED.show();
+    delay(10);
+  }
+}
+void IR_Auswerten(){
+  if (irrecv.decode(&results)) {
+    Serial.println(results.value, HEX);
+    irrecv.resume();
+  }
+ 
+ /* if (irrecv.decode(&results)) {    //Wenn Daten empfangen wurden,
+    Serial.println(results.value, DEC); //werden sie als Dezimalzahl (DEC) an den Serial-Monitor ausgegeben.
+
+    for (int i = 0; i <= 9; i++) {
+      if (results.value == 16724175) encoderWert[aktiverModus] = 0;
+    }
+    
+    if (results.value == 16724175) encoderWert[aktiverModus] = 0;
+    if (results.value == 16724175) encoderWert[aktiverModus] = 1;
+    ´if (results.value == 16724175) encoderWert[aktiverModus] = 2;
+    if (results.value == 16724175) encoderWert[aktiverWert] = 3;
+    if (results.value == 16724175) encoderWert[aktiverWert] = 4;
+    if (results.value == 16724175) encoderWert[aktiverWert] = 5;
+    if (results.value == 16724175) encoderWert[aktiverWert] = 6;
+    if (results.value == 16724175) encoderWert[aktiverWert] = 7;
+    if (results.value == 16724175) encoderWert[aktiverWert] = 8;
+    if (results.value == 16724175) encoderWert[aktiverWert] = 9;
+
+    if (results.value == 16724175) encoderWert[aktiverModusverModus] += encoderIntervall[aktiverModus];
+    if (results.value == 16724175) encoderWert[aktiverModus] -= encoderIntervall[aktiverModus];
+
+*/
+  }
+
 
 void intervallAnpassung()
 {
@@ -178,9 +321,6 @@ void encoderAuswerten()
   }
 
   lastButtonState = buttonState; // Speichern des vorherigen Status des Buttons
-
-  // Debounce the reading
-  delay(1);
 }
 
 void buttonAuswerten(long duration)
@@ -203,11 +343,42 @@ void buttonAuswerten(long duration)
       break;
     case PGM_2:
       // start effekt
+      effectProgram();
       break;
     case PGM_3:
       // change kelvin-wert
       break;
     }
+  }
+}
+
+void effectProgram()
+{
+  if(encoderWert[aktiverModus]==1)
+  {
+  // Rainbow effect
+  rainbow();
+  
+  }
+  if(encoderWert[aktiverModus]==2)
+  {
+    // Color wipe effect
+  colorWipe(CRGB::Red, 50);
+  
+  }
+  if(encoderWert[aktiverModus]==3)
+  {// Theater chase effect
+  theaterChase(CRGB::Green, 50);
+  
+  }
+  if(encoderWert[aktiverModus]==4)
+  {// Twinkle effect
+  twinkle(CRGB::Blue, 50);
+  
+  }
+  if(encoderWert[aktiverModus]==5)
+  {// Fade all LEDs to black
+  fadeToBlack();
   }
 }
 
