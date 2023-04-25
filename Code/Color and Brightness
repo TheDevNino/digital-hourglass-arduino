@@ -1,0 +1,77 @@
+#include <FastLED.h>
+
+#define LED_PIN     8
+#define NUM_LEDS    55
+CRGB leds[NUM_LEDS];
+
+#define DT  2
+#define CLK 3
+int lastEncoded = 0;
+long encoderValue = 0;
+
+#define SW  4
+bool buttonPressed = false;
+bool buttonReleased = true;
+
+int colorIndex = 0;
+int brightnessValue = 255;
+
+const CRGB colors[] = { CRGB::Red, CRGB::Yellow, CRGB::Blue, CRGB::Purple, CRGB::White };
+
+void setup() {
+  FastLED.addLeds<NEOPIXEL, LED_PIN>(leds, NUM_LEDS);
+
+  pinMode(DT, INPUT_PULLUP);
+  pinMode(CLK, INPUT_PULLUP);
+  pinMode(SW, INPUT_PULLUP);
+
+  attachInterrupt(digitalPinToInterrupt(DT), updateEncoder, CHANGE);
+  attachInterrupt(digitalPinToInterrupt(CLK), updateEncoder, CHANGE);
+}
+
+void loop() {
+  handleButton();
+  handleEncoder();
+
+  CRGB selectedColor = colors[colorIndex];
+  selectedColor = selectedColor.scale8(brightnessValue);
+
+  for(int i = 0; i < NUM_LEDS; i++) {
+    leds[i] = selectedColor;
+  }
+
+  FastLED.show();
+}
+
+void handleButton() {
+  if(digitalRead(SW) == LOW && buttonReleased) {
+    buttonPressed = true;
+    buttonReleased = false;
+  }
+
+  if(digitalRead(SW) == HIGH && buttonPressed) {
+    buttonPressed = false;
+    buttonReleased = true;
+
+    colorIndex = (colorIndex + 1) % 5;
+  }
+}
+
+void handleEncoder() {
+  int encoded = (digitalRead(DT) << 1) | digitalRead(CLK);
+  int sum = (lastEncoded << 2) | encoded;
+
+  if(sum == 0b0001 || sum == 0b1110) {
+    encoderValue++;
+    brightnessValue = constrain(brightnessValue + 5, 0, 255);
+  } else if(sum == 0b0010 || sum == 0b1101) {
+    encoderValue--;
+    brightnessValue = constrain(brightnessValue - 5, 0, 255);
+  }
+
+  lastEncoded = encoded;
+}
+
+void updateEncoder() {
+  handleEncoder();
+}
