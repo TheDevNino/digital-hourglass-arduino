@@ -13,8 +13,42 @@ TBlendType currentBlending;
 extern CRGBPalette16 myRedWhiteBluePalette;
 extern const TProgmemPalette16 myRedWhiteBluePalette_p PROGMEM;
 
+int luminanceM1;
+CRGB light_color[] = {CRGB::Blue, CRGB::White, CRGB::Yellow};
+int l_counter = 1;
+
+int timerPhase = 1; // Bugfix: Evtl auch 0
+
 // Button des Drehencoders
 #define SW 4
+
+void hourglass_LED()
+{
+    // Da es 28 Sandkörner gibt, die Herunterfallen können, wird dieser Bereich 28x während des Ablaufs ausgeführt
+    leds[timerPhase] = CRGB::Black;                // "Sandkorn" oben ausblenden
+    leds[NUM_LEDS + 1 - timerPhase] = CRGB::White; // "Sandkorn" unten einblenden
+    FastLED.show();
+    timerPhase++;
+}
+
+void changeKelvin()
+{
+    for (int i = 0; i < NUM_LEDS; i++)
+    {
+        leds[i] = light_color[l_counter];
+    }
+    FastLED.show();
+    if (l_counter == 3)
+    {
+        l_counter = 0;
+    }
+    else
+    {
+        l_counter++;
+    }
+}
+
+// TODO @TheDoor47: Statt delay bitte millis, sonst ist die Steuerung im Zeitabschnitt nicht mehr möglich!
 
 void rainbow()
 {

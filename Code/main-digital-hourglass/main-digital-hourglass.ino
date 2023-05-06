@@ -19,11 +19,14 @@
 // Library für die 7-Segmentanzeige
 #include <ShiftRegister74HC595.h>
 
-// Library für den IR Empfänger
+// Library für den IR Empfänger: V 2-0-1
 #include <IRremote.h>
 
 // Library für die WS2812b LEDs
 #include <FastLED.h>
+
+// Library für die serielle Schnittstelle (Hier: Gyroskop)
+#include <Wire.h>
 
 // Grundlage für die gesamte Programmstruktur
 enum Modus
@@ -73,25 +76,19 @@ uint8_t digits[] = {
     B10010000  // 9
 };
 
-// IR Empfänger
-#define IR 5
-
-// WS2812b
+// WS2812b - hier evtl löschen
 #define LED_PIN 8
 #define NUM_LEDS 55
 #define BRIGHTNESS 20
 #define LED_TYPE WS2812
 #define COLOR_ORDER GRB
 #define UPDATES_PER_SECOND 100
-int luminanceM1;
-CRGB light_color[] = {CRGB::Blue, CRGB::White, CRGB::Yellow};
-int l_counter = 0;
 
 // IR Empfänger
-int RECV_PIN = 12;
+#define RECV_PIN 9
 IRrecv irrecv(RECV_PIN);
 decode_results results;
-uint8_t IR_Value[] = {
+int IR_Value[] = {
     16738455, // 0
     16724175, // 1
     16718055, // 2
@@ -101,16 +98,26 @@ uint8_t IR_Value[] = {
     16734885, // 6
     16728765, // 7
     16728765, // 8
-    16732845  // 9
+    16732845, // 9
+    16736925, // ++
+    16754775  // --
 };
 
 // Gyroskop
+const int MPU_addr = 0x68;
+int16_t AcX, AcY, AcZ, Tmp, GyX, GyY, GyZ;
+bool horizontalPosition, horizontalPositionM1;
+int minVal = 265;
+int maxVal = 402;
+double x;
+double y;
+double z;
 
 // evtl Beeper
 
 void setup()
 {
-  // delay( 100 ); // power-up safety delay
+  delay(100); // Eventuelle Spannungsspitzen beim Einschaltvorgang nicht auf Bauteile übertragen
 
   // Encoder Pins
   pinMode(CLK, INPUT);
@@ -127,7 +134,15 @@ void setup()
   // Initialisierung des Displays
   showNumber(1);
 
+  // Initialisierung der seriellen Schnittstelle (Gyroskop)
+  Wire.begin();
+  Wire.beginTransmission(MPU_addr);
+  Wire.write(0x6B);
+  Wire.write(0);
+  Wire.endTransmission(true);
+
   // Initialisierung des Infrarotempfängers
+  irrecv.enableIRIn(); // enable the receiver
   irrecv.blink13(true);
 
   // Initialisierung der LEDs
@@ -153,16 +168,14 @@ void setup()
       ledCount++;
     }
   }
-
-  // currentPalette = RainbowColors_p;
-  // currentBlending = LINEARBLEND;
 }
 
 void loop()
 {
   intervallAnpassung();
   encoderAuswerten();
-  // IR_Auswerten();
+  IR_Auswerten();
+  Gyro_Auswerten();
 
   // Entprellen
   delay(1);
@@ -180,21 +193,56 @@ void intervallAnpassung()
   }
 }
 
+void Gyro_Auswerten()
+{
+  Wire.beginTransmission(MPU_addr);
+  Wire.write(0x3B);
+  Wire.endTransmission(false);
+  Wire.requestFrom(MPU_addr, 14, true);
+  AcX = Wire.read() << 8 | Wire.read();
+  AcY = Wire.read() << 8 | Wire.read();
+  AcZ = Wire.read() << 8 | Wire.read();
+  int xAng = map(AcX, minVal, maxVal, -180, 180);
+  int yAng = map(AcY, minVal, maxVal, -180, 180);
+  int zAng = map(AcZ, minVal, maxVal, -180, 180);
+
+  z = RAD_TO_DEG * (atan2(-yAng, -xAng) + PI);
+
+  if (z >= 240 && z <= 300)
+    horizontalPosition = false;
+  if (z >= 60 && z <= 120)
+    horizontalPosition = true;
+  if (horizontalPosition != horizontalPositionM1)
+    signalAuswerten(1);
+  // TODO: Anpassung der Segmentanzeige
+}
+
 void IR_Auswerten()
 {
   if (irrecv.decode(&results))
   {
-    Serial.println(results.value, HEX);
+    int IR_Input = results.value;
+    Serial.println(IR_Input);
+
     for (int i = 0; i <= 9; i++)
     {
-      if (results.value == IR_Value[i])
+      if (IR_Input == IR_Value[i])
+      {
         encoderWert[aktiverModus] = i;
+      }
     }
-    if (results.value == 16724175)
-      encoderWert[aktiverModus] += encoderIntervall[aktiverModus];
-    if (results.value == 16724175)
-      encoderWert[aktiverModus] -= encoderIntervall[aktiverModus];
 
+    if (IR_Input == IR_Value[10])
+    {
+      encoderWert[aktiverModus] += encoderIntervall[aktiverModus];
+    }
+    if (IR_Input == IR_Value[11])
+    {
+      encoderWert[aktiverModus] -= encoderIntervall[aktiverModus];
+    }
+
+    encoderWert[aktiverModus] = constrain(encoderWert[aktiverModus], encoderMin[aktiverModus], encoderMax[aktiverModus]);
+    showNumber(encoderWert[aktiverModus]);
     irrecv.resume();
   }
 }
@@ -269,7 +317,7 @@ void signalAuswerten(long duration)
   if (duration > 300)
   {
     aktiverModus = 0;
-    showNumber(0);
+    showNumber(encoderWert[aktiverModus]);
   }
   else if (duration >= 30)
   {
@@ -327,6 +375,7 @@ void startTimer()
   unsigned long inputTime = encoderWert[aktiverModus];
   unsigned long startTime = millis();
   unsigned long elapsedTime = 0;
+  int animationInterval = encoderWert[aktiverModus] / NUM_LEDS;
 
   while (inputTime > 0)
   {
@@ -337,7 +386,11 @@ void startTimer()
       inputTime--;
       startTime = millis();
     }
-    encoderWert[aktiverModus] = inputTime;
+
+    if (inputTime % animationInterval)
+    {
+      hourglass_LED();
+    }
 
     if (inputTime > 60)
     {
@@ -347,7 +400,7 @@ void startTimer()
     {
       showNumber(inputTime);
     }
-    // TODO: Sanduhr Animation
+    // TODO: if button > 3 sek => Abbruch
   }
   encoderWert[aktiverModus] = encoderM1;
   // * Eventuell Abschluss-Animation und Beeper
@@ -411,22 +464,11 @@ void effectProgram()
 void lightProgram()
 {
   int luminance = map(encoderWert[3], encoderMin[3], encoderMax[3], 0, 50); // Encoder-Wert auf LED-Helligkeitswert anpassen
+  int luminanceM1;
 
   if (luminanceM1 == luminance)
   {
-    for (int i = 0; i < NUM_LEDS; i++)
-    {
-      leds[i] = light_color[l_counter];
-      FastLED.show();
-    }
-    if (l_counter = 3)
-    {
-      l_counter = 0;
-    }
-    else
-    {
-      l_counter++;
-    }
+    changeKelvin();
   }
   else
   {
