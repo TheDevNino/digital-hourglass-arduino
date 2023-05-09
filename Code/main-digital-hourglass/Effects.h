@@ -13,9 +13,16 @@ TBlendType currentBlending;
 extern CRGBPalette16 myRedWhiteBluePalette;
 extern const TProgmemPalette16 myRedWhiteBluePalette_p PROGMEM;
 
-int luminanceM1;
-CRGB light_color[] = {CRGB::Blue, CRGB::White, CRGB::Yellow};
-int l_counter = 1;
+CRGB light_color[7] = {
+    CRGB(255, 102, 0),   // 2000K - Ultra warm white
+    CRGB(255, 167, 43),  // 3000K - Warm white
+    CRGB(255, 228, 214), // 4000K - Neutral white
+    CRGB(230, 240, 255), // 5000K - Daylight white
+    CRGB(196, 214, 255), // 6000K - Cool daylight
+    CRGB(167, 191, 255), // 7000K - Blue daylight
+    CRGB(143, 167, 255)  // 8000K - Blue-white daylight
+};
+int l_counter = 0;
 
 int timerPhase = 1; // Bugfix: Evtl auch 0
 
@@ -24,9 +31,8 @@ int timerPhase = 1; // Bugfix: Evtl auch 0
 
 void hourglass_LED()
 {
-    // Da es 28 Sandkörner gibt, die Herunterfallen können, wird dieser Bereich 28x während des Ablaufs ausgeführt
-    leds[timerPhase] = CRGB::Black;                // "Sandkorn" oben ausblenden
-    leds[NUM_LEDS + 1 - timerPhase] = CRGB::White; // "Sandkorn" unten einblenden
+    leds[timerPhase] = CRGB::Black;          // "Sandkorn" oben ausblenden
+    leds[55 + 1 - timerPhase] = CRGB::White; // "Sandkorn" unten einblenden
     FastLED.show();
     timerPhase++;
 }
@@ -38,7 +44,7 @@ void changeKelvin()
         leds[i] = light_color[l_counter];
     }
     FastLED.show();
-    if (l_counter == 3)
+    if (l_counter == 6)
     {
         l_counter = 0;
     }

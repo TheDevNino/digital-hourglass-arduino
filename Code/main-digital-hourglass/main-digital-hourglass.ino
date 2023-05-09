@@ -75,6 +75,7 @@ uint8_t digits[] = {
     B10000000, // 8
     B10010000  // 9
 };
+int luminanceM1;
 
 // WS2812b - hier evtl löschen
 #define LED_PIN 8
@@ -117,8 +118,6 @@ double z;
 
 void setup()
 {
-  delay(100); // Eventuelle Spannungsspitzen beim Einschaltvorgang nicht auf Bauteile übertragen
-
   // Encoder Pins
   pinMode(CLK, INPUT);
   pinMode(DT, INPUT);
@@ -219,7 +218,7 @@ void Gyro_Auswerten()
 
 void IR_Auswerten()
 {
-  if (irrecv.decode(&results))
+  if (irrecv.decode())
   {
     int IR_Input = results.value;
     Serial.println(IR_Input);
@@ -329,7 +328,8 @@ void signalAuswerten(long duration)
       break;
     case PGM_1:
       // start timer
-      startTimer();
+      startTimer(encoderWert[aktiverModus]);
+      Serial.println("Timer Start");
       break;
     case PGM_2:
       // start effekt
@@ -369,44 +369,61 @@ int secondsToMinutes(int seconds)
   }
 }
 
-void startTimer()
+void startTimer(long dauer)
 {
-  int encoderM1 = encoderWert[aktiverModus];
-  unsigned long inputTime = encoderWert[aktiverModus];
   unsigned long startTime = millis();
-  unsigned long elapsedTime = 0;
-  int animationInterval = encoderWert[aktiverModus] / NUM_LEDS;
+  long elapsedTime = 0;
+  float animationInterval = (float)dauer * 1000 / 29.0;
+  unsigned long lastAnimationTime = millis();
+  int animationCounter = 0;
+  Serial.print("Animationsintervall in ms: ");
+  Serial.println(animationInterval);
+  int timerPhase = -1;
 
-  while (inputTime > 0)
+  for (int i = 0; i < NUM_LEDS / 2; i++)
   {
-    elapsedTime = millis() - startTime;
-
-    if (elapsedTime >= 1000)
-    {
-      inputTime--;
-      startTime = millis();
-    }
-
-    if (inputTime % animationInterval)
-    {
-      hourglass_LED();
-    }
-
-    if (inputTime > 60)
-    {
-      showNumber((secondsToMinutes(inputTime)));
-    }
-    else
-    {
-      showNumber(inputTime);
-    }
-    // TODO: if button > 3 sek => Abbruch
+    leds[i] = CRGB::White;
+    FastLED.show();
   }
-  encoderWert[aktiverModus] = encoderM1;
+  for (int i = NUM_LEDS / 2; i < NUM_LEDS; i++)
+  {
+    leds[i] = CRGB::Black;
+    FastLED.show();
+  }
+
+  while (elapsedTime < dauer || digitalRead(SW) == LOW)
+  {
+    if (millis() - startTime >= 1000)
+    {
+      startTime += 1000;
+      elapsedTime++;
+      Serial.print(elapsedTime);
+      if ((dauer - elapsedTime) > 60)
+      {
+        showNumber((secondsToMinutes(dauer - elapsedTime)));
+      }
+      else
+      {
+        showNumber(dauer - elapsedTime);
+      }
+    }
+    if (millis() - lastAnimationTime >= animationInterval)
+    {
+      lastAnimationTime = millis();
+      leds[timerPhase] = CRGB::Black; // "Sandkorn" oben ausblenden
+      FastLED.show();
+      leds[54 - timerPhase] = CRGB::White; // "Sandkorn" unten einblenden
+      FastLED.show();
+      timerPhase++;
+      animationCounter++;
+    }
+  }
+  Serial.println("Timer abgelaufen.");
+  showNumber(encoderWert[aktiverModus]);
   // * Eventuell Abschluss-Animation und Beeper
 }
 
-void showNumber(int num) // https://robojax.com/learn/arduino/?vid=robojax_74HC595_2_digits (Änderungen vorgenommen)
+void showNumber(int num)
 {
   digit2 = num % 10;
   digit1 = (num / 10) % 10;
@@ -464,7 +481,6 @@ void effectProgram()
 void lightProgram()
 {
   int luminance = map(encoderWert[3], encoderMin[3], encoderMax[3], 0, 50); // Encoder-Wert auf LED-Helligkeitswert anpassen
-  int luminanceM1;
 
   if (luminanceM1 == luminance)
   {
