@@ -69,6 +69,36 @@ void rainbow()
     }
 }
 
+CRGB blendColors(CRGB color1, CRGB color2, float progress)
+{
+    CRGB blendedColor;
+    blendedColor.red = color1.red + (color2.red - color1.red) * progress;
+    blendedColor.green = color1.green + (color2.green - color1.green) * progress;
+    blendedColor.blue = color1.blue + (color2.blue - color1.blue) * progress;
+    return blendedColor;
+}
+
+void fadeToColor(CRGB startColor, CRGB endColor, unsigned long duration, int startLED, int endLED)
+{
+    unsigned long startTime = millis(); // Startzeit speichern
+    while (millis() - startTime <= duration)
+    {
+        float progress = float(millis() - startTime) / duration;         // Fortschritt des Übergangs berechnen
+        CRGB currentColor = blendColors(startColor, endColor, progress); // Farbe basierend auf dem Fortschritt mischen
+        for (int i = startLED; i < endLED; i++)
+        {
+            leds[i] = currentColor; // LED mit der aktuellen Farbe aktualisieren
+        }
+        FastLED.show(); // LEDs aktualisieren
+        delay(10);      // Eine kurze Pause für einen sanften Übergang
+    }
+    for (int i = startLED; i < endLED; i++)
+    {
+        leds[i] = endColor; // Abschließend die Endfarbe setzen
+    }
+    FastLED.show(); // LEDs aktualisieren
+}
+
 void colorWipe(CRGB color, int speed)
 {
     while (digitalRead(SW) == HIGH)

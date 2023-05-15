@@ -91,17 +91,24 @@ IRrecv irrecv(RECV_PIN);
 decode_results results;
 int IR_Value[] = {
     16738455, // 0
-    16724175, // 1
-    16718055, // 2
-    16756815, // 3
-    16716015, // 4
-    16726215, // 5
-    16734885, // 6
-    16728765, // 7
-    16728765, // 8
-    16732845, // 9
-    16736925, // ++
-    16754775  // --
+    -14281,   // 1
+    18615,    // 2
+    2295,     // 3
+    -6121,    // 4
+    26775,    // 5
+    10455,    // 6
+    -10201,   // 7
+    22695,    // 8
+    10455,    // 9
+    -26011,   // ++
+    4845,     // ++
+    8415,     // ++
+    -12241,   // --
+    -30091,   // --
+    24735,    // --
+    -21931,   // OK
+    15045,    // Home
+    -26521    // Home
 };
 
 // Gyroskop
@@ -148,36 +155,15 @@ void setup()
   FastLED.addLeds<LED_TYPE, LED_PIN, COLOR_ORDER>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
   FastLED.setBrightness(BRIGHTNESS);
 
-  // Define the LED arrangement in the form of a Sandclock
-  int ledCount = 0;
-  for (int i = 7; i >= 1; i--) // Top Half
-  {
-    for (int j = 1; j <= i; j++)
-    {
-      leds[ledCount] = CRGB::White;
-      ledCount++;
-    }
-  }
-  leds[28] = CRGB::White;      // Middle LED
-  for (int i = 2; i <= 7; i++) // Bottom Half
-  {
-    for (int j = 1; j <= i; j++)
-    {
-      leds[ledCount] = CRGB::White;
-      ledCount++;
-    }
-  }
+  delay(400);
 }
 
 void loop()
 {
   intervallAnpassung();
-  encoderAuswerten();
-  IR_Auswerten();
   Gyro_Auswerten();
-
-  // Entprellen
-  delay(1);
+  IR_Auswerten();
+  encoderAuswerten();
 }
 
 void intervallAnpassung()
@@ -207,18 +193,20 @@ void Gyro_Auswerten()
 
   z = RAD_TO_DEG * (atan2(-yAng, -xAng) + PI);
 
+  horizontalPositionM1 = horizontalPosition;
   if (z >= 240 && z <= 300)
     horizontalPosition = false;
   if (z >= 60 && z <= 120)
     horizontalPosition = true;
-  if (horizontalPosition != horizontalPositionM1)
+  if (horizontalPosition != horizontalPositionM1 && aktiverModus == PGM_1)
     signalAuswerten(1);
+
   // TODO: Anpassung der Segmentanzeige
 }
 
 void IR_Auswerten()
 {
-  if (irrecv.decode())
+  if (irrecv.decode(&results))
   {
     int IR_Input = results.value;
     Serial.println(IR_Input);
@@ -227,22 +215,40 @@ void IR_Auswerten()
     {
       if (IR_Input == IR_Value[i])
       {
-        encoderWert[aktiverModus] = i;
+        if (aktiverModus == PGM_1)
+        {
+          encoderWert[aktiverModus] = i * 60;
+        }
+        else
+        {
+          encoderWert[aktiverModus] = i;
+        }
       }
     }
 
-    if (IR_Input == IR_Value[10])
-    {
+    if (IR_Input == IR_Value[10] || IR_Input == IR_Value[13] || IR_Input == IR_Value[12])
       encoderWert[aktiverModus] += encoderIntervall[aktiverModus];
-    }
-    if (IR_Input == IR_Value[11])
-    {
+    if (IR_Input == IR_Value[13] || IR_Input == IR_Value[14] || IR_Input == IR_Value[15])
       encoderWert[aktiverModus] -= encoderIntervall[aktiverModus];
-    }
+    if (IR_Input == IR_Value[16])
+      signalAuswerten(1);
+    if (IR_Input == IR_Value[17] || IR_Input == IR_Value[18])
+      signalAuswerten(1000);
 
     encoderWert[aktiverModus] = constrain(encoderWert[aktiverModus], encoderMin[aktiverModus], encoderMax[aktiverModus]);
-    showNumber(encoderWert[aktiverModus]);
+    if (aktiverModus == PGM_1 && encoderWert[aktiverModus] >= 60)
+    {
+      showNumber(secondsToMinutes(encoderWert[aktiverModus]));
+    }
+    else
+    {
+      showNumber(encoderWert[aktiverModus]);
+    }
+
     irrecv.resume();
+
+    // Debugging
+    InfoToSerial();
   }
 }
 
@@ -259,20 +265,15 @@ void encoderAuswerten()
     // Determine the direction of rotation based on the current and last DT state
     if (currentStateDT != currentStateCLK)
     {
-      // Clockwise rotation
-      encoderWert[aktiverModus] += encoderIntervall[aktiverModus];
+      encoderWert[aktiverModus] -= encoderIntervall[aktiverModus];
     }
     else
     {
-      // Counterclockwise rotation
-      encoderWert[aktiverModus] -= encoderIntervall[aktiverModus];
+      encoderWert[aktiverModus] += encoderIntervall[aktiverModus];
     }
 
     // Clamp the parameter value to the allowed range
     encoderWert[aktiverModus] = constrain(encoderWert[aktiverModus], encoderMin[aktiverModus], encoderMax[aktiverModus]);
-
-    // Debugging
-    InfoToSerial();
 
     // Größere Zahlen mit Dezimalstelle anzeigen
     if (aktiverModus == PGM_1 && encoderWert[aktiverModus] >= 60)
@@ -283,6 +284,9 @@ void encoderAuswerten()
     {
       showNumber(encoderWert[aktiverModus]);
     }
+
+    // Debugging
+    InfoToSerial();
   }
 
   // Remember last CLK and DT state
@@ -301,7 +305,11 @@ void encoderAuswerten()
     {                                                               // Wenn der Button losgelassen wird
       unsigned long buttonUpTime = millis();                        // Speichern der Endzeit
       unsigned long buttonDuration = buttonUpTime - buttonDownTime; // Berechnen der Dauer
-      signalAuswerten(buttonDuration);
+      if (buttonDuration != 402)
+      {
+        Serial.println(buttonDuration);
+        signalAuswerten(buttonDuration);
+      }
     }
   }
 
@@ -313,12 +321,12 @@ void encoderAuswerten()
 
 void signalAuswerten(long duration)
 {
-  if (duration > 300)
+  if (duration > 500)
   {
     aktiverModus = 0;
     showNumber(encoderWert[aktiverModus]);
   }
-  else if (duration >= 30)
+  else if (duration <= 500)
   {
     switch (aktiverModus)
     {
@@ -379,19 +387,34 @@ void startTimer(long dauer)
   Serial.print("Animationsintervall in ms: ");
   Serial.println(animationInterval);
   int timerPhase = -1;
+  bool abbruch = false;
 
   for (int i = 0; i < NUM_LEDS / 2; i++)
   {
-    leds[i] = CRGB::White;
+    if (horizontalPosition)
+    {
+      leds[i] = CRGB::White;
+    }
+    else
+    {
+      leds[i] = CRGB::Black;
+    }
     FastLED.show();
   }
   for (int i = NUM_LEDS / 2; i < NUM_LEDS; i++)
   {
-    leds[i] = CRGB::Black;
+    if (horizontalPosition)
+    {
+      leds[i] = CRGB::Black;
+    }
+    else
+    {
+      leds[i] = CRGB::White;
+    }
     FastLED.show();
   }
 
-  while (elapsedTime < dauer || digitalRead(SW) == LOW)
+  while (elapsedTime < dauer)
   {
     if (millis() - startTime >= 1000)
     {
@@ -410,17 +433,47 @@ void startTimer(long dauer)
     if (millis() - lastAnimationTime >= animationInterval)
     {
       lastAnimationTime = millis();
-      leds[timerPhase] = CRGB::Black; // "Sandkorn" oben ausblenden
-      FastLED.show();
-      leds[54 - timerPhase] = CRGB::White; // "Sandkorn" unten einblenden
-      FastLED.show();
+      if (horizontalPosition)
+      {
+        leds[timerPhase] = CRGB::Black; // "Sandkorn" unten ausblenden
+        FastLED.show();
+        leds[54 - timerPhase] = CRGB::White; // "Sandkorn" oben einblenden
+        FastLED.show();
+      }
+      else
+      {
+        leds[54 - timerPhase] = CRGB::Black; // "Sandkorn" oben ausblenden
+        FastLED.show();
+        leds[timerPhase] = CRGB::White; // "Sandkorn" unten einblenden
+        FastLED.show();
+      }
+
       timerPhase++;
       animationCounter++;
+    }
+
+    if (digitalRead(SW) == LOW) // Timer Abbruch
+    {
+      elapsedTime = dauer;
+      abbruch = true;
+      delay(500);
     }
   }
   Serial.println("Timer abgelaufen.");
   showNumber(encoderWert[aktiverModus]);
-  // * Eventuell Abschluss-Animation und Beeper
+  if (!abbruch)
+  {
+    if (!horizontalPosition)
+    {
+      fadeToColor(CRGB::White, CRGB::Red, 2000, 0, 25);
+    }
+    else
+    {
+      fadeToColor(CRGB::White, CRGB::Red, 2000, 25, 55);
+    }
+    // * Eventuell Beeper
+  }
+  abbruch = false;
 }
 
 void showNumber(int num)
